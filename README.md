@@ -14,41 +14,17 @@ npm install
 npm start
 ```
 
-The API listens on `PORT` when set, otherwise `5000`.
-
-## Test
-
-```sh
-npm test
-```
-
-## Public Sample Test
-
-```sh
-npm run samples:test -- path/to/pasted-text.txt
-```
-
-## Latency Test
-
 Start the API first:
 
 ```sh
 npm start
 ```
 
-Then run:
-
-```sh
-npm run latency:test
-```
 
 When no URL is passed, the latency test uses `BASE_URL` if set, otherwise `http://127.0.0.1:${PORT}` with the same `.env`/`PORT` value used by the API, falling back to port `5000`.
 
 You can also pass the base URL explicitly:
 
-```sh
-npm run latency:test -- http://127.0.0.1:5000
-```
 
 The latency tool checks `GET /health`, warms up `POST /analyze-ticket`, then runs 100 requests with moderate concurrency by default. It reports success count, failure count, average latency, p50, p95, p99, max latency, and failure rate. Non-200 responses, invalid JSON, missing schema fields, and missing `relevant_transaction_id` are counted as failures.
 
