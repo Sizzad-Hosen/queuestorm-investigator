@@ -2,6 +2,7 @@ import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import { fileURLToPath } from "node:url";
 
 import { analyzeTicket } from "./detector.js";
 import { buildResponse } from "./responseBuilder.js";
@@ -57,6 +58,31 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`QueueStorm Investigator API running on port ${PORT}`);
+app.use((error, req, res, next) => {
+  if (error instanceof SyntaxError && "body" in error) {
+    return res.status(400).json({
+      error: "invalid_json",
+      message: "Request body must be valid JSON."
+    });
+  }
+
+  return res.status(500).json({
+    error: "internal_error",
+    message: "The service could not process this request safely."
+  });
 });
+
+const isDirectRun = process.argv[1] === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  const server = app.listen(PORT, () => {
+    console.log(`QueueStorm Investigator API running on port ${PORT}`);
+  });
+
+  server.on("error", (error) => {
+    console.error(`QueueStorm Investigator API failed to start: ${error.message}`);
+    process.exitCode = 1;
+  });
+}
+
+export { app };

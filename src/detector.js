@@ -28,20 +28,21 @@ export const analyzeTicket = (input) => {
     input.metadata?.relevant_transaction_id,
     input.metadata?.txn_id
   ].filter(Boolean).join(" ");
-  const exactTxn = findTransactionById(transactionIdHint, transactions)
-    || (transactions.length === 1 ? transactions[0] : null);
+  const exactTxn = findTransactionById(transactionIdHint, transactions);
 
   const safety = detectSafetyRisk(text);
 
   if (safety.isPhishing) {
+    const txn = exactTxn || findLatestMatchingTransaction(complaint, transactions);
+
     return {
-      relevant_transaction_id: null,
-      evidence_verdict: EVIDENCE_VERDICT.INSUFFICIENT_DATA,
+      relevant_transaction_id: txn ? txn.transaction_id : null,
+      evidence_verdict: txn ? EVIDENCE_VERDICT.CONSISTENT : EVIDENCE_VERDICT.INSUFFICIENT_DATA,
       case_type: CASE_TYPE.PHISHING,
       severity: SEVERITY.CRITICAL,
       department: DEPARTMENT.FRAUD_RISK,
       human_review_required: true,
-      confidence: 0.95,
+      confidence: txn ? 0.96 : 0.95,
       reason_codes: ["phishing", "critical_escalation", ...safety.reasonCodes]
     };
   }
@@ -74,12 +75,11 @@ export const analyzeTicket = (input) => {
   const merchantSettlementClaim =
     input.user_type === "merchant" ||
     input.channel === "merchant_portal" ||
-    includesAny(text, ["settlement", "merchant", "sales", "সেটেলমেন্ট", "মার্চেন্ট"]);
+    includesAny(text, ["settlement", "settled", "sales", "সেটেলমেন্ট"]);
 
   if (merchantSettlementClaim) {
     const txn = exactTxn
-      || findLatestMatchingTransaction(complaint, transactions, "settlement")
-      || transactions.find(t => t.type === "settlement");
+      || findLatestMatchingTransaction(complaint, transactions, "settlement");
 
     return {
       relevant_transaction_id: txn ? txn.transaction_id : null,
@@ -107,8 +107,7 @@ export const analyzeTicket = (input) => {
 
   if (agentCashInClaim) {
     const txn = exactTxn
-      || findLatestMatchingTransaction(complaint, transactions, "cash_in")
-      || transactions.find(t => t.type === "cash_in");
+      || findLatestMatchingTransaction(complaint, transactions, "cash_in");
 
     return {
       relevant_transaction_id: txn ? txn.transaction_id : null,
@@ -137,8 +136,7 @@ export const analyzeTicket = (input) => {
 
   if (paymentFailedClaim) {
     const txn = exactTxn
-      || findLatestMatchingTransaction(complaint, transactions, "payment")
-      || transactions.find(t => t.type === "payment");
+      || findLatestMatchingTransaction(complaint, transactions, "payment");
 
     let verdict = EVIDENCE_VERDICT.INSUFFICIENT_DATA;
 
@@ -229,8 +227,7 @@ export const analyzeTicket = (input) => {
 
   if (refundClaim) {
     const txn = exactTxn
-      || findLatestMatchingTransaction(complaint, transactions, "payment")
-      || transactions.find(t => t.type === "payment");
+      || findLatestMatchingTransaction(complaint, transactions, "payment");
 
     return {
       relevant_transaction_id: txn ? txn.transaction_id : null,

@@ -1,5 +1,45 @@
-import { CASE_TYPE } from "./constants.js";
+import {
+  CASE_TYPE,
+  DEPARTMENT,
+  EVIDENCE_VERDICT,
+  SEVERITY
+} from "./constants.js";
 import { isBangla } from "./utils.js";
+
+const validValues = (source) => new Set(Object.values(source));
+
+const VALID_CASE_TYPES = validValues(CASE_TYPE);
+const VALID_DEPARTMENTS = validValues(DEPARTMENT);
+const VALID_EVIDENCE_VERDICTS = validValues(EVIDENCE_VERDICT);
+const VALID_SEVERITIES = validValues(SEVERITY);
+
+const normalizeRelevantTransactionId = (value) => {
+  if (value === undefined || value === null) return null;
+
+  const normalized = String(value).trim();
+  if (!normalized || normalized.toLowerCase() === "null") return null;
+
+  return normalized;
+};
+
+const withValidEnum = (value, allowed, fallback) => {
+  return allowed.has(value) ? value : fallback;
+};
+
+const normalizeAnalysis = (analysis = {}) => ({
+  relevant_transaction_id: normalizeRelevantTransactionId(analysis.relevant_transaction_id),
+  evidence_verdict: withValidEnum(
+    analysis.evidence_verdict,
+    VALID_EVIDENCE_VERDICTS,
+    EVIDENCE_VERDICT.INSUFFICIENT_DATA
+  ),
+  case_type: withValidEnum(analysis.case_type, VALID_CASE_TYPES, CASE_TYPE.OTHER),
+  severity: withValidEnum(analysis.severity, VALID_SEVERITIES, SEVERITY.LOW),
+  department: withValidEnum(analysis.department, VALID_DEPARTMENTS, DEPARTMENT.CUSTOMER_SUPPORT),
+  human_review_required: Boolean(analysis.human_review_required),
+  confidence: typeof analysis.confidence === "number" ? analysis.confidence : 0.5,
+  reason_codes: Array.isArray(analysis.reason_codes) ? analysis.reason_codes : ["fallback_schema"]
+});
 
 function buildAgentSummary(input, analysis) {
   const txnId = analysis.relevant_transaction_id;
@@ -69,14 +109,14 @@ function buildCustomerReply(input, analysis) {
 
   if (bangla) {
     if (analysis.case_type === CASE_TYPE.PHISHING) {
-      return "আমরা কখনো আপনার পিন, ওটিপি বা পাসওয়ার্ড চাই না। অনুগ্রহ করে এগুলো কারো সাথে শেয়ার করবেন না। বিষয়টি আমাদের ফ্রড রিস্ক টিমকে জানানো হয়েছে।";
+      return "Amra kokhono apnar PIN, OTP, password, full card number ba secret credential chai na. Ei gopon tottho nijer kache rakhun. Bishoyti fraud risk team ke janano hoyeche.";
     }
 
     if (!txnId) {
-      return "ধন্যবাদ। বিষয়টি যাচাই করতে অনুগ্রহ করে লেনদেন আইডি, টাকার পরিমাণ এবং কী সমস্যা হয়েছে তা জানান। আপনার পিন বা ওটিপি কারো সাথে শেয়ার করবেন না।";
+      return "Dhonnobad. Bishoyti jachai korte transaction ID, amount, approximate time ebong issue details janan. PIN, OTP, password ba secret credential gopon rakhun.";
     }
 
-    return `আপনার লেনদেন ${txnId} সম্পর্কে আমরা অবগত হয়েছি। সংশ্লিষ্ট দল বিষয়টি অফিসিয়াল চ্যানেলের মাধ্যমে যাচাই করবে। অনুগ্রহ করে আপনার পিন বা ওটিপি কারো সাথে শেয়ার করবেন না।`;
+    return `Apnar transaction ${txnId} niye amra note niyechi. Relevant team official channel er maddhome bishoyti verify korbe. PIN, OTP, password ba secret credential gopon rakhun.`;
   }
 
   if (analysis.case_type === CASE_TYPE.PHISHING) {
@@ -101,20 +141,21 @@ function buildCustomerReply(input, analysis) {
 
   return `We have noted your concern about transaction ${txnId}. The relevant team will review the case and contact you through official support channels. Please do not share your PIN or OTP with anyone.`;
 }
-
 export const buildResponse = (input, analysis) => {
+  const normalized = normalizeAnalysis(analysis);
+
   return {
     ticket_id: input.ticket_id,
-    relevant_transaction_id: analysis.relevant_transaction_id,
-    evidence_verdict: analysis.evidence_verdict,
-    case_type: analysis.case_type,
-    severity: analysis.severity,
-    department: analysis.department,
-    agent_summary: buildAgentSummary(input, analysis),
-    recommended_next_action: buildNextAction(analysis),
-    customer_reply: buildCustomerReply(input, analysis),
-    human_review_required: analysis.human_review_required,
-    confidence: analysis.confidence,
-    reason_codes: analysis.reason_codes
+    relevant_transaction_id: normalized.relevant_transaction_id,
+    evidence_verdict: normalized.evidence_verdict,
+    case_type: normalized.case_type,
+    severity: normalized.severity,
+    department: normalized.department,
+    agent_summary: buildAgentSummary(input, normalized),
+    recommended_next_action: buildNextAction(normalized),
+    customer_reply: buildCustomerReply(input, normalized),
+    human_review_required: normalized.human_review_required,
+    confidence: normalized.confidence,
+    reason_codes: normalized.reason_codes
   };
 };

@@ -1,4 +1,83 @@
-import { extractNumbers } from "./utils.js";
+import { extractNumbers, includesAny, normalizeText } from "./utils.js";
+
+const TYPE_KEYWORDS = {
+  transfer: ["transfer", "sent", "send", "wrong number", "wrong person", "wrong recipient"],
+  payment: ["payment", "paid", "merchant", "bill", "checkout", "deducted", "charged"],
+  cash_in: ["cash in", "cash-in", "cashin", "agent", "balance not added"],
+  cash_out: ["cash out", "cash-out", "cashout", "withdraw"],
+  settlement: ["settlement", "merchant", "sales"],
+  refund: ["refund", "money back", "return my money"]
+};
+
+const STATUS_KEYWORDS = {
+  completed: ["completed", "success", "successful", "sent", "paid", "deducted", "charged"],
+  failed: ["failed", "failure", "unsuccessful", "did not go through"],
+  pending: ["pending", "processing", "stuck"],
+  reversed: ["reversed", "returned", "refunded"]
+};
+
+const ISSUE_KEYWORDS = [
+  "failed",
+  "deducted",
+  "charged",
+  "not received",
+  "didn't get",
+  "did not get",
+  "not added",
+  "missing",
+  "pending",
+  "stuck",
+  "wrong",
+  "mistake",
+  "refund",
+  "money back",
+  "settlement",
+  "settled",
+  "cash in",
+  "cash-in",
+  "payment",
+  "paid",
+  "sent"
+];
+
+const isCounterpartyMentioned = (text, counterparty) => {
+  const normalized = normalizeText(counterparty);
+
+  return normalized.length >= 3 && text.includes(normalized);
+};
+
+const hasAmountMatch = (amounts, txn) => amounts.includes(Number(txn.amount));
+
+const hasStatusMatch = (text, txn) => {
+  const keywords = STATUS_KEYWORDS[txn.status] || [];
+
+  return includesAny(text, keywords);
+};
+
+const hasTypeMatch = (text, txn) => {
+  const keywords = TYPE_KEYWORDS[txn.type] || [];
+
+  return includesAny(text, keywords);
+};
+
+const hasTransactionIssueSignal = (text) => includesAny(text, ISSUE_KEYWORDS);
+
+const timestampValue = (txn) => {
+  const value = new Date(txn.timestamp).getTime();
+
+  return Number.isNaN(value) ? 0 : value;
+};
+
+const scoreTransaction = (text, amounts, txn) => {
+  let score = 0;
+
+  if (hasAmountMatch(amounts, txn)) score += 6;
+  if (isCounterpartyMentioned(text, txn.counterparty)) score += 5;
+  if (hasStatusMatch(text, txn)) score += 3;
+  if (hasTypeMatch(text, txn)) score += 2;
+
+  return score;
+};
 
 export const findTransactionById = (complaint, transactions) => {
   const text = String(complaint || "").toLowerCase();
@@ -24,18 +103,35 @@ export const findLatestMatchingTransaction = (complaint, transactions, type = nu
     return exactMatch;
   }
 
-  let candidates = findTransactionsByAmount(complaint, transactions);
-
-  if (type) {
-    candidates = candidates.filter(txn => txn.type === type);
-  }
+  const text = normalizeText(complaint);
+  const amounts = extractNumbers(complaint);
+  let candidates = type
+    ? transactions.filter(txn => txn.type === type)
+    : transactions.slice();
 
   if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0];
 
-  return candidates
-    .slice()
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+  const amountMatches = candidates.filter(txn => hasAmountMatch(amounts, txn));
+  if (amountMatches.length === 1) return amountMatches[0];
+
+  const scored = candidates
+    .map(txn => ({ txn, score: scoreTransaction(text, amounts, txn) }))
+    .filter(match => match.score > 0)
+    .sort((a, b) => b.score - a.score || timestampValue(b.txn) - timestampValue(a.txn));
+
+  if (scored.length > 0 && scored[0].score >= 5) {
+    return scored[0].txn;
+  }
+
+  if (
+    type &&
+    candidates.length === 1 &&
+    (hasTypeMatch(text, candidates[0]) || hasStatusMatch(text, candidates[0]) || hasTransactionIssueSignal(text))
+  ) {
+    return candidates[0];
+  }
+
+  return null;
 };
 
 export const detectDuplicatePayment = (transactions) => {
