@@ -1,6 +1,6 @@
-const { z } = require("zod");
+import { z } from "zod";
 
-const transactionSchema = z.object({
+export const transactionSchema = z.object({
   transaction_id: z.string(),
   timestamp: z.string().optional(),
   type: z.enum([
@@ -21,7 +21,7 @@ const transactionSchema = z.object({
   ])
 });
 
-const inputSchema = z.object({
+export const inputSchema = z.object({
   ticket_id: z.string(),
   complaint: z.string(),
   language: z.enum(["en", "bn", "mixed"]).optional(),
@@ -37,8 +37,3 @@ const inputSchema = z.object({
   transaction_history: z.array(transactionSchema).optional().default([]),
   metadata: z.record(z.any()).optional()
 }).passthrough();
-
-export const validationSchemas = {
-    inputSchema,
-    transactionSchema
-}

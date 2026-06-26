@@ -1,4 +1,4 @@
-const CASE_TYPE = Object.freeze({
+export const CASE_TYPE = Object.freeze({
   WRONG_TRANSFER: "wrong_transfer",
   PAYMENT_FAILED: "payment_failed",
   REFUND_REQUEST: "refund_request",
@@ -9,7 +9,7 @@ const CASE_TYPE = Object.freeze({
   OTHER: "other"
 });
 
-const DEPARTMENT = Object.freeze({
+export const DEPARTMENT = Object.freeze({
   CUSTOMER_SUPPORT: "customer_support",
   DISPUTE_RESOLUTION: "dispute_resolution",
   PAYMENTS_OPS: "payments_ops",
@@ -18,22 +18,15 @@ const DEPARTMENT = Object.freeze({
   FRAUD_RISK: "fraud_risk"
 });
 
-const SEVERITY = Object.freeze({
+export const SEVERITY = Object.freeze({
   LOW: "low",
   MEDIUM: "medium",
   HIGH: "high",
   CRITICAL: "critical"
 });
 
-const EVIDENCE_VERDICT = Object.freeze({
+export const EVIDENCE_VERDICT = Object.freeze({
   CONSISTENT: "consistent",
   INCONSISTENT: "inconsistent",
   INSUFFICIENT_DATA: "insufficient_data"
 });
-
-module.exports = {
-  CASE_TYPE,
-  DEPARTMENT,
-  SEVERITY,
-  EVIDENCE_VERDICT
-};
